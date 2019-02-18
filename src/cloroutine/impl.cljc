@@ -186,11 +186,13 @@
                 (let [l (:name ast)
                       s (get-in ssa [:shadow l])
                       p (get-in ssa [:locals l])]
-                  (if (or s (nil? p))
+                  (if s
                     (assoc ssa :result `(hint ~(-> ast :tag tag->symbol) ~(:tag met) ~s))
-                    (-> ssa
-                        (with-place p)
-                        (assoc :result (emit-place ssa (:tag met) p)))))
+                    (if p
+                      (-> ssa
+                          (with-place p)
+                          (assoc :result (emit-place ssa (:tag met) p)))
+                      (assoc ssa :result `(hint ~(-> ast :tag tag->symbol) ~(:tag met) ~l)))))
 
                 (:let :loop)
                 (let [previous ssa

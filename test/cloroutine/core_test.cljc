@@ -1,8 +1,7 @@
 (ns cloroutine.core-test
   (:require [cloroutine.core :refer [cr]]
             [cloroutine.impl :refer [safe]]
-            [clojure.test :refer [deftest is]]
-            #?(:cljs [goog.async.nextTick]))
+            [clojure.test :refer [deftest is]])
   #?(:cljs (:require-macros
              [cloroutine.core-test :refer [bk]])))
 
