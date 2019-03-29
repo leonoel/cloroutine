@@ -37,9 +37,16 @@
         ~@(when finally (list `(finally ~@finally)))))
 
 (defn coroutine [^objects state]
-  #(let [result ((aget state 0))]
-     (if (identical? result state)
-       (recur) result)))
+  (fn
+    ([]
+     (let [result ((aget state 0) state)]
+       (if (identical? result state)
+         (recur) result)))
+    ([f] (f (coroutine (aclone state))))
+    ([f a] (f (coroutine (aclone state)) a))
+    ([f a b] (f (coroutine (aclone state)) a b))
+    ([f a b c] (f (coroutine (aclone state)) a b c))
+    ([f a b c & ds] (apply f (coroutine (aclone state)) a b c ds))))
 
 (defn sym [& args]
   (symbol (apply str (interpose "-" args))))
@@ -674,10 +681,8 @@
                                        ~(emit-jump ssa block default))))))) bind))]
                  ~(emit-jump ssa block handler))))]
     (fn [{:as ssa :keys [colors blocks prefix]}]
-      `(let [~(sym prefix 'state) (object-array ~(inc colors))]
-         (letfn [~@(map (fn [block] (list block [] (emit-block ssa block))) (keys blocks))]
-           (aset ~(sym prefix 'state) 0 ~(sym prefix 'block 0))
-           (coroutine ~(sym prefix 'state)))))))
+      `(letfn [~@(map (fn [block] (list block [(sym prefix 'state)] (emit-block ssa block))) (keys blocks))]
+         (coroutine (doto (object-array ~(inc colors)) (aset 0 ~(sym prefix 'block 0))))))))
 
 (defn compile [prefix breaks env form]
   (-> {:prefix prefix

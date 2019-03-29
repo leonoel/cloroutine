@@ -25,5 +25,9 @@ Suspend and resume vars are guaranteed to be called synchronously in the thread
 calling the coroutine. For this reason, the cr macro will ignore breaking vars
 in code able to escape synchronous execution context. This includes function
 bodies and custom type methods.
+
+Calling the non-zero arity of a coroutine will clone the coroutine and pass the
+copy to the function provided as first argument, and return the result. Other
+arguments are passed to the function as-is.
 "} cr [breaks & body]
   (i/compile (gensym "cr") breaks &env (cons `do body)))

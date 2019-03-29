@@ -31,3 +31,5 @@ The following guides show how to leverage the `cr` macro to implement clojure-fl
 1. [Generators as lazy sequences](doc/01-generators.md)
 2. [Future-based asynchronous processes, aka async/await](doc/02-async-await.md)
 3. [Transducers revisited](doc/03-conduits.md)
+4. [Delimited continuations](doc/04-delimited-continuations.md)
+5. [Monads](doc/05-monads.md)
