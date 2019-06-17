@@ -1,7 +1,7 @@
 {:deps
- {org.clojure/clojure            {:mvn/version "1.8.0"}
-  org.clojure/clojurescript      {:mvn/version "1.10.439"}
-  org.clojure/tools.analyzer.jvm {:mvn/version "0.7.0"}}
+ {org.clojure/clojure            {:mvn/version "1.10.1"}
+  org.clojure/clojurescript      {:mvn/version "1.10.520"}
+  org.clojure/tools.analyzer.jvm {:mvn/version "0.7.2"}}
 
  :aliases
  {:clj-test
@@ -13,6 +13,6 @@
 
   :cljs-test
   {:extra-deps  {olical/cljs-test-runner
-                 {:mvn/version "3.2.0"}}
-   :extra-paths ["test"]
+                 {:mvn/version "3.6.0"}}
+   :extra-paths ["test" "cljs-test-runner-out/gen"]
    :main-opts   ["-m" "cljs-test-runner.main"]}}}

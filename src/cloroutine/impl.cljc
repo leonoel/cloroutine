@@ -1,6 +1,6 @@
 (ns ^:no-doc cloroutine.impl
   (:refer-clojure :exclude [compile])
-  (:require [cljs.analyzer.api :as cljs]
+  (:require [cljs.analyzer] [cljs.env]
     #?(:clj [clojure.tools.analyzer.jvm :as clj]))
   #?(:clj (:import (clojure.lang Compiler$LocalBinding IObj)))
   #?(:cljs (:require-macros [cloroutine.impl :refer [safe hint]])))
@@ -19,8 +19,14 @@
   (reduce-kv #(assoc %1 %3 %2) {} box->prim))
 
 (defn with-tag [form tag]
-  #?(:clj  (if (instance? IObj form) (with-meta form (assoc (meta form) :tag tag)) form)
-     :cljs (with-meta form (assoc (meta form) :tag tag))))
+  (if #?(:clj (instance? IObj form) :cljs (satisfies? IMeta form))
+    (with-meta form (assoc (meta form) :tag tag)) form))
+
+(defn var-name [ast]
+  (or (when-some [v (:info ast)]
+        (:name v))
+      (when-some [v (:meta ast)]
+        (symbol (str (:ns v)) (name (:name v))))))
 
 (defmacro hint [to from form]
   (if (:js-globals &env)
@@ -57,25 +63,21 @@
 
 (defn analyze [env form]
   (if (:js-globals env)
-    #?(:clj
-       (cljs/analyze env form)
-       :cljs
-       (throw (ex-info "ClojureScript compilation unsupported." {})))
-    #?(:clj
-       (->> env
-            (into {} (map (fn [[symbol binding]]
-                            [symbol (or (when (instance? Compiler$LocalBinding binding)
-                                          (let [binding ^Compiler$LocalBinding binding]
-                                            {:op   :local
-                                             :tag  (when (.hasJavaClass binding)
-                                                     (some-> binding (.getJavaClass)))
-                                             :form symbol
-                                             :name symbol}))
-                                        binding)])))
-            (update (clj/empty-env) :locals merge)
-            (clj/analyze form))
-       :cljs
-       (throw (ex-info "ClojureScript compilation unsupported." {})))))
+    (binding [cljs.env/*compiler* (or cljs.env/*compiler* (cljs.env/default-compiler-env))]
+      (cljs.analyzer/analyze env form nil nil))
+    #?(:clj (->> env
+                 (into {} (map (fn [[symbol binding]]
+                                 [symbol (or (when (instance? Compiler$LocalBinding binding)
+                                               (let [binding ^Compiler$LocalBinding binding]
+                                                 {:op   :local
+                                                  :tag  (when (.hasJavaClass binding)
+                                                          (some-> binding (.getJavaClass)))
+                                                  :form symbol
+                                                  :name symbol}))
+                                             binding)])))
+                 (update (clj/empty-env) :locals merge)
+                 (clj/analyze form))
+       :cljs (throw (ex-info "Can't target JVM from clojurescript." {})))))
 
 (def ssa
   (letfn [(emit-apply [args meta & prefixes]
@@ -94,11 +96,6 @@
             (with-meta (apply hash-map args) meta))
           (emit-place [ssa tag place]
             `(hint ~tag ~(-> ssa :places place :tag) ~place))
-          (var-name [ast]
-            (or (when-some [v (:info ast)]
-                  (:name v))
-                (when-some [v (:meta ast)]
-                  (symbol (str (:ns v)) (name (:name v))))))
           (instance [ast]
             (or (:instance ast) (:target ast)))
           (field [ast]
@@ -295,7 +292,7 @@
                                   (update :result (partial cons (:name method)))
                                   (update :result (partial conj (:result ssa)))))
                             (assoc ssa :result []) (:methods ast))
-                    (update :result (->> (disj (:interfaces ast) clojure.lang.IObj)
+                    (update :result (->> (-> (:interfaces ast) #?(:clj (disj IObj)))
                                          (map tag->symbol)
                                          (apply partial list* `reify))))
 
@@ -686,7 +683,7 @@
 
 (defn compile [prefix breaks env form]
   (-> {:prefix prefix
-       :breaks breaks}
+       :breaks (zipmap (map (comp var-name (partial analyze env)) (keys breaks)) (vals breaks))}
       (ssa (analyze env form))
       (span)
       (color)
