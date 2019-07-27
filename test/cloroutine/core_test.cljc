@@ -106,4 +106,5 @@
                   0 (recur (inc x))
                   1 42))) 42)
   (run (cr {} (set! #?(:clj  (.-gridx (java.awt.GridBagConstraints.))
-                       :cljs (.-state (volatile! nil))) 42)) 42))
+                       :cljs (.-state (volatile! nil))) 42)) 42)
+  (run (cr {} ((comp) 42)) 42))

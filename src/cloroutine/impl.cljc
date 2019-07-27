@@ -23,10 +23,11 @@
     (with-meta form (assoc (meta form) :tag tag)) form))
 
 (defn var-name [ast]
-  (or (when-some [v (:info ast)]
-        (:name v))
-      (when-some [v (:meta ast)]
-        (symbol (str (:ns v)) (name (:name v))))))
+  (when (= :var (:op ast))
+    (or (when-some [v (:info ast)]
+          (:name v))
+        (when-some [v (:meta ast)]
+          (symbol (str (:ns v)) (name (:name v)))))))
 
 (defmacro hint [to from form]
   (if (:js-globals &env)
