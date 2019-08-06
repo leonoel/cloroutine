@@ -66,18 +66,19 @@
   (if (:js-globals env)
     (binding [cljs.env/*compiler* (or cljs.env/*compiler* (cljs.env/default-compiler-env))]
       (cljs.analyzer/analyze env form nil nil))
-    #?(:clj (->> env
-                 (into {} (map (fn [[symbol binding]]
-                                 [symbol (or (when (instance? Compiler$LocalBinding binding)
-                                               (let [binding ^Compiler$LocalBinding binding]
-                                                 {:op   :local
-                                                  :tag  (when (.hasJavaClass binding)
-                                                          (some-> binding (.getJavaClass)))
-                                                  :form symbol
-                                                  :name symbol}))
-                                             binding)])))
-                 (update (clj/empty-env) :locals merge)
-                 (clj/analyze form))
+    #?(:clj  (binding [clj/run-passes clj/scheduled-default-passes]
+               (->> env
+                    (into {} (map (fn [[symbol binding]]
+                                    [symbol (or (when (instance? Compiler$LocalBinding binding)
+                                                  (let [binding ^Compiler$LocalBinding binding]
+                                                    {:op   :local
+                                                     :tag  (when (.hasJavaClass binding)
+                                                             (some-> binding (.getJavaClass)))
+                                                     :form symbol
+                                                     :name symbol}))
+                                                binding)])))
+                    (update (clj/empty-env) :locals merge)
+                    (clj/analyze form)))
        :cljs (throw (ex-info "Can't target JVM from clojurescript." {})))))
 
 (def ssa
