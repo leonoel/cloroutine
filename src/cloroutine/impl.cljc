@@ -460,7 +460,7 @@
                   (assoc ssa :result place :tag tag)
                   (add-place ssa (:form ast) tag))
 
-                (:const :var :js-var :quote)
+                (:const :var :js-var :quote :the-var)
                 (add-place ssa `(hint ~tag ~(-> ast :o-tag tag->symbol) ~(:form ast)) tag)
 
                 (:fn :reify :deftype)
