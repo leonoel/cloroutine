@@ -185,7 +185,7 @@
                 :with-meta
                 (recur ssa (:expr ast))
 
-                (:const :var :js-var :quote :static-field)
+                (:const :var :js-var :quote :the-var :static-field)
                 (assoc ssa :result (:form ast))
 
                 :local
