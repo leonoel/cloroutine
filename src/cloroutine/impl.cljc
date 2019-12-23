@@ -457,7 +457,9 @@
 
                 :local
                 (if-some [place (get-in ssa [:locals (:name ast)])]
-                  (assoc ssa :result place :tag tag)
+                  (-> ssa
+                      (with-place place)
+                      (add-place (emit-place ssa tag place) tag))
                   (add-place ssa (:form ast) tag))
 
                 (:const :var :js-var :quote :the-var)
@@ -652,9 +654,12 @@
                   needed (get-in ssa [:blocks block :heap] #{})]
               `(do
                  (aset ~(emit-state-symbol ssa) 0 ~block)
-                 ~@(->> (concat (->> heap (remove needed) (map (juxt identity (constantly nil))))
-                                (->> bind (filter needed) (map (juxt identity identity))) write)
-                        (map (partial emit-store ssa))) ~state)))
+                 ~@(map (partial emit-store ssa)
+                        (concat (->> (zipmap heap (repeat nil))
+                                     (remove (comp needed key)))
+                                (->> (merge write (zipmap bind bind))
+                                     (filter (comp needed key)))))
+                 ~state)))
 
           (emit-block [{:as ssa :keys [places blocks prefix]} block]
             (let [{:keys [read bind test clauses default handler]} (get blocks block)
