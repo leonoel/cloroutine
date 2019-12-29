@@ -2,8 +2,19 @@
   (:refer-clojure :exclude [compile])
   (:require [cljs.analyzer] [cljs.env]
     #?(:clj [clojure.tools.analyzer.jvm :as clj]))
-  #?(:clj (:import (clojure.lang Compiler$LocalBinding IObj)))
+  #?(:clj (:import (clojure.lang Compiler$LocalBinding IObj)
+                   (java.lang.reflect Field Modifier)
+                   (sun.misc Unsafe)))
   #?(:cljs (:require-macros [cloroutine.impl :refer [safe hint]])))
+
+(def unsafe
+  #?(:clj
+     (some (fn [^Field f]
+             (when (Modifier/isStatic (.getModifiers f))
+               (when (= Unsafe (.getType f))
+                 (.setAccessible f true)
+                 (.get f nil))))
+           (.getDeclaredFields Unsafe))))
 
 (def box->prim
   '{java.lang.Boolean   boolean
@@ -273,6 +284,12 @@
 
                 :throw
                 (collect ssa add-closing (list (:exception ast)) update :result emit-apply met `throw)
+
+                :monitor-enter
+                (collect ssa add-closing (list (:target ast)) update :result emit-apply met 'monitor-enter)
+
+                :monitor-exit
+                (collect ssa add-closing (list (:target ast)) update :result emit-apply met 'monitor-exit)
 
                 :fn
                 (let [local (:local ast)
@@ -567,6 +584,12 @@
                 (-> ssa
                     (collect add-breaking [(:exception ast)] add-many tag emit-apply met `throw)
                     (dissoc :result))
+
+                :monitor-enter
+                (collect ssa add-breaking [(:target ast)] add-many tag emit-apply met '.monitorEnter (with-meta `unsafe `{:tag Unsafe}))
+
+                :monitor-exit
+                (collect ssa add-breaking [(:target ast)] add-many tag emit-apply met '.monitorExit (with-meta `unsafe `{:tag Unsafe}))
 
                 :letfn
                 (let [prev    ssa
