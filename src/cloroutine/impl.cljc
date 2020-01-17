@@ -122,24 +122,25 @@
               (map :then thens)
               (map (comp :then :then) nodes)))
           (try-handler [ast sym]
-            (or (:catch ast)
-                ((fn rec [catch catches]
-                   (if-some [[{{class :val} :class :keys [local body]} & catches] catches]
-                     (let [then {:op       :let
-                                 :bindings [(assoc local :init {:op :local :name sym})]
-                                 :body     body}]
-                       (case class
-                         java.lang.Throwable then
-                         {:op   :if
-                          :test {:op     :instance?
-                                 :class  class
-                                 :target {:op :local :name sym}}
-                          :then then
-                          :else (rec catch catches)}))
-                     catch))
-                  {:op :throw
-                   :exception {:op :local :name sym}}
-                  (seq (:catches ast)))))
+            (if (:name ast)
+              (:catch ast)
+              ((fn rec [catch catches]
+                 (if-some [[{{class :val} :class :keys [local body]} & catches] catches]
+                   (let [then {:op       :let
+                               :bindings [(assoc local :init {:op :local :name sym})]
+                               :body     body}]
+                     (case class
+                       java.lang.Throwable then
+                       {:op   :if
+                        :test {:op     :instance?
+                               :class  class
+                               :target {:op :local :name sym}}
+                        :then then
+                        :else (rec catch catches)}))
+                   catch))
+               {:op :throw
+                :exception {:op :local :name sym}}
+               (seq (:catches ast)))))
           (constructor [{:keys [class]}]
             (or (:val class) (:name class)))
           (ast-meta [ast]
