@@ -195,7 +195,8 @@
               (case (:op ast)
 
                 :with-meta
-                (recur ssa (:expr ast))
+                (let [ssa (add-closing ssa (:expr ast))]
+                  (update ssa :result (partial list `with-meta) (:form (:meta ast))))
 
                 (:const :var :js-var :quote :the-var :static-field)
                 (assoc ssa :result (:form ast))
@@ -471,7 +472,8 @@
               (case (:op ast)
 
                 :with-meta
-                (recur ssa (:expr ast))
+                (let [ssa (add-breaking ssa (:expr ast))]
+                  (update-in ssa [:places (:result ssa) :init] (partial list `with-meta) (:form (:meta ast))))
 
                 :local
                 (if-some [place (get-in ssa [:locals (:name ast)])]
