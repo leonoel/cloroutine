@@ -12,7 +12,7 @@ First, let's define a dynamic var to hold the thread-local context keeping track
 (def ^:dynamic *tail*)
 
 (defn gen-seq [gen]
-  (binding [*tail* (lazy-seq (gen-seq gen))] (gen)))
+  (lazy-seq (binding [*tail* (gen-seq gen)] (gen))))
 ```
 
 
