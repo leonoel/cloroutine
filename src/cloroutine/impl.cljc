@@ -482,7 +482,7 @@
                       (add-place (emit-place ssa tag place) tag))
                   (add-place ssa (:form ast) tag))
 
-                (:const :var :js-var :quote :the-var)
+                (:const :var :js-var :quote :the-var :static-field)
                 (add-place ssa `(hint ~tag ~(-> ast :o-tag tag->symbol) ~(:form ast)) tag)
 
                 (:fn :reify :deftype)
