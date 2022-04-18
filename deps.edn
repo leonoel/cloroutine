@@ -1,18 +1,17 @@
 {:deps
- {org.clojure/clojure            {:mvn/version "1.10.1"}
-  org.clojure/clojurescript      {:mvn/version "1.10.520"}
-  org.clojure/tools.analyzer.jvm {:mvn/version "0.7.2"}}
+ {org.clojure/clojure            {:mvn/version "1.11.1"}
+  org.clojure/clojurescript      {:mvn/version "1.11.4"}
+  org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}}
 
  :aliases
  {:clj-test
-  {:extra-deps  {com.cognitect/test-runner
-                 {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                  :sha     "028a6d41ac9ac5d5c405dfc38e4da6b4cc1255d5"}}
+  {:extra-deps  {io.github.cognitect-labs/test-runner
+                 {:git/tag "v0.5.0" :git/sha "b3fd0d2"}}
    :extra-paths ["test"]
    :main-opts   ["-m" "cognitect.test-runner"]}
 
   :cljs-test
   {:extra-deps  {olical/cljs-test-runner
-                 {:mvn/version "3.6.0"}}
+                 {:mvn/version "3.8.0"}}
    :extra-paths ["test" "cljs-test-runner-out/gen"]
    :main-opts   ["-m" "cljs-test-runner.main"]}}}
