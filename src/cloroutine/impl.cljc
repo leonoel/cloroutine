@@ -92,6 +92,12 @@
                     (clj/analyze form)))
        :cljs (throw (ex-info "Can't target JVM from clojurescript." {})))))
 
+(defn coerce-js-literal-key [k]
+  (or
+    (and (string? k) k)
+    (and (keyword? k) (nil? (namespace k)) (name k))
+    (throw (ex-info (str "Invalid JS literal key - " k) {:key k}))))
+
 (def ssa
   (letfn [(emit-apply [args meta & prefixes]
             (with-meta `(~@prefixes ~@args) meta))
@@ -107,6 +113,10 @@
             (with-meta (set args) meta))
           (emit-map [args meta]
             (with-meta (apply hash-map args) meta))
+          (emit-js-object [args meta keys]
+            (with-meta (cons 'cljs.core/js-obj (interleave keys args)) meta))
+          (emit-js-array [args meta]
+            (with-meta (cons 'cljs.core/array args) meta))
           (emit-place [ssa tag place]
             `(hint ~tag ~(-> ssa :places place :tag) ~place))
           (instance [ast]
@@ -261,6 +271,12 @@
 
                 :js
                 (collect ssa add-closing (:args ast) update :result emit-apply met 'js* (js-template ast))
+
+                :js-array
+                (collect ssa add-closing (:items ast) update :result emit-js-array met)
+
+                :js-object
+                (collect ssa add-closing (:vals ast) update :result emit-js-object met (map coerce-js-literal-key (:keys ast)))
 
                 :vector
                 (collect ssa add-closing (:items ast) update :result emit-vec met)
@@ -527,6 +543,12 @@
 
                 :js
                 (collect ssa add-breaking (:args ast) add-many tag emit-apply met 'js* (js-template ast))
+
+                :js-array
+                (collect ssa add-breaking (:items ast) add-many tag emit-js-array met)
+
+                :js-object
+                (collect ssa add-breaking (:vals ast) add-many tag emit-js-object met (map coerce-js-literal-key (:keys ast)))
 
                 :vector
                 (collect ssa add-breaking (:items ast) add-many tag emit-vec met)
