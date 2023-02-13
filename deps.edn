@@ -1,7 +1,7 @@
 {:deps
  {org.clojure/clojure            {:mvn/version "1.11.1"}
-  org.clojure/clojurescript      {:mvn/version "1.11.4"}
-  org.clojure/tools.analyzer.jvm {:mvn/version "1.2.2"}}
+  org.clojure/clojurescript      {:mvn/version "1.11.60"}
+  org.clojure/tools.analyzer.jvm {:mvn/version "1.2.3"}}
 
  :aliases
  {:clj-test
