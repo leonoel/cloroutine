@@ -1,11 +1,11 @@
 (ns ^:no-doc cloroutine.impl
   (:refer-clojure :exclude [compile])
-  (:require [cljs.analyzer] [cljs.env]
-    #?(:clj [clojure.tools.analyzer.jvm :as clj]))
-  #?(:clj (:import (clojure.lang Compiler$LocalBinding IObj)
-                   (java.lang.reflect Field Modifier)
-                   (sun.misc Unsafe)))
-  #?(:cljs (:require-macros [cloroutine.impl :refer [safe hint]])))
+  (:require #?(:cljs [cloroutine.impl.analyze-cljs :as impl]
+               :clj  [cloroutine.impl.analyze-clj  :as impl]))
+  #?(:cljs (:require-macros [cloroutine.impl :refer [safe hint]])
+     :clj  (:import (clojure.lang IObj)
+                    (java.lang.reflect Field Modifier)
+                    (sun.misc Unsafe))))
 
 (def unsafe
   #?(:clj
@@ -14,7 +14,8 @@
                (when (= Unsafe (.getType f))
                  (.setAccessible f true)
                  (.get f nil))))
-           (.getDeclaredFields Unsafe))))
+           (.getDeclaredFields Unsafe))
+     :default nil))
 
 (def box->prim
   '{java.lang.Boolean   boolean
@@ -73,24 +74,16 @@
 (def conj-set (fnil conj #{}))
 (def into-set (fnil into #{}))
 
+(defn- cljs-provided? []
+  #?(:cljs true
+     :clj  (boolean (requiring-resolve 'cljs.env/default-compiler-env))))
+
 (defn analyze [env form]
-  (if (:js-globals env)
-    (binding [cljs.env/*compiler* (or cljs.env/*compiler* (cljs.env/default-compiler-env))]
-      (cljs.analyzer/analyze env form nil nil))
-    #?(:clj  (binding [clj/run-passes clj/scheduled-default-passes]
-               (->> env
-                    (into {} (map (fn [[symbol binding]]
-                                    [symbol (or (when (instance? Compiler$LocalBinding binding)
-                                                  (let [binding ^Compiler$LocalBinding binding]
-                                                    {:op   :local
-                                                     :tag  (when (.hasJavaClass binding)
-                                                             (some-> binding (.getJavaClass)))
-                                                     :form symbol
-                                                     :name symbol}))
-                                                binding)])))
-                    (update (clj/empty-env) :locals merge)
-                    (clj/analyze form)))
-       :cljs (throw (ex-info "Can't target JVM from clojurescript." {})))))
+  (if (and (:js-globals env) (cljs-provided?))
+    #?(:cljs (impl/analyze env form)
+       :clj  ((requiring-resolve 'cloroutine.impl.analyze-cljs/analyze) env form))
+    #?(:cljs (throw (ex-info "Can't target JVM from clojurescript." {}))
+       :clj  (impl/analyze env form))))
 
 (defn coerce-js-literal-key [k]
   (or
