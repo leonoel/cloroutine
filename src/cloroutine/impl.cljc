@@ -532,7 +532,7 @@
                     (collect ssa add-breaking (list (instance target) val) add-many tag emit-member-assign met (field target))))
 
                 :def
-                (collect ssa add-breaking (list (:init ast)) add-many tag emit-apply met `def (:name ast))
+                (collect ssa add-breaking (list (:init ast)) add-many tag emit-apply met `def (with-meta (:name ast) (:val (:meta ast))))
 
                 :js
                 (collect ssa add-breaking (:args ast) add-many tag emit-apply met 'js* (js-template ast))
