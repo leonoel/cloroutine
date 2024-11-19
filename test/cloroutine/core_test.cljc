@@ -108,6 +108,8 @@
   (run (cr {} (set! #?(:clj  (.-gridx (java.awt.GridBagConstraints.))
                        :cljs (.-state (volatile! nil))) 42)) 42)
   (run (cr {} ((comp) 42)) 42)
+  ((cr {} (defn foo [] 41)))
+  (is (= (foo) 41))
   #?(:cljs (run (cr {} (js->clj #js{:bar 1})) {"bar" 1}))
   #?(:cljs (run (cr {} (js->clj ((fn [] #js{:bar 1})))) {"bar" 1}))
   #?(:cljs (run (cr {} (js->clj #js[1 2 3])) [1 2 3]))
