@@ -30,6 +30,17 @@
 (def prim->box
   (reduce-kv #(assoc %1 %3 %2) {} box->prim))
 
+(defn class->symbol [c]
+  #?(:clj
+     (when (instance? Class c)
+       (let [s (symbol (.getName ^Class c))]
+         (get box->prim s s)))))
+
+(defn tag->symbol [c]
+  (or
+    (when (symbol? c) c)
+    (class->symbol c)))
+
 (defn with-tag [form tag]
   (if #?(:clj (instance? IObj form) :cljs (satisfies? IMeta form))
     (with-meta form (assoc (meta form) :tag tag)) form))
@@ -110,8 +121,13 @@
             (with-meta (cons 'cljs.core/js-obj (interleave keys args)) meta))
           (emit-js-array [args meta]
             (with-meta (cons 'cljs.core/array args) meta))
-          (emit-place [ssa tag place]
-            `(hint ~tag ~(-> ssa :places place :tag) ~place))
+          (emit-place [{:keys [places]
+                        :as ssa}
+                       tag place]
+            `(hint ~tag
+                   ~(when (contains? places place)
+                      (-> places place :tag))
+                   ~place))
           (instance [ast]
             (or (:instance ast) (:target ast)))
           (field [ast]
@@ -148,15 +164,6 @@
             (or (:val class) (:name class)))
           (ast-meta [ast]
             (select-keys (:env ast) [:file :column :line]))
-          (class->symbol [c]
-            #?(:clj
-                (when (instance? Class c)
-                  (let [s (symbol (.getName ^Class c))]
-                    (get box->prim s s)))))
-          (tag->symbol [c]
-            (or
-              (when (symbol? c) c)
-              (class->symbol c)))
           (function [ast]
             (or (:f ast) (:fn ast)))
           (js-template [ast]
@@ -168,9 +175,12 @@
                         (dissoc m k))) m ks))
           (current-block [ssa]
             (sym (:prefix ssa) 'block (-> ssa :blocks count dec)))
-          (with-place [ssa place]
+          (with-place [{:keys [places]
+                        :as ssa}
+                       place]
             (let [block (current-block ssa)]
-              (if (= block (-> ssa :places place :block))
+              (if (or (not (contains? places place))
+                      (= block (-> places place :block)))
                 ssa (update-in ssa [:blocks block :read] conj-set place))))
           (collect [ssa rf asts f & args]
             (loop [ssa (assoc ssa :result [] :tag [])
@@ -396,9 +406,6 @@
             (reduce-kv (fn [ssa block place]
                          (with-continue ssa block {target place}))
                        ssa branches))
-          (with-test [ssa test]
-            (update-in ssa [:blocks (current-block ssa)] assoc :test test))
-
           (with-handler [{:as ssa :keys [prefix]} caught write]
             (reduce (fn [ssa block]
                       (with-transition ssa block (current-block ssa) write
@@ -418,20 +425,19 @@
                                  (zipmap targets places)
                                  (sym prefix 'state) :default)
                 (dissoc :result)))
-          (add-bindings [previous bindings f & args]
-            (loop [ssa previous
-                   bindings (seq bindings)
-                   places []]
-              (if-some [[{:keys [name init]} & bindings] bindings]
-                (as-> ssa ssa
-                      (add-breaking ssa init)
-                      (update ssa :locals assoc name (:result ssa))
-                      (if-some [place (:result ssa)]
-                        (recur ssa bindings (conj places place)) ssa))
-                (as-> ssa ssa
-                      (assoc ssa :result places)
-                      (apply f ssa args)
-                      (restore ssa previous :locals)))))
+          (add-binding [{:as ssa, places :result} {:keys [name init]}]
+            (let [{:as ssa, :keys [tag result]} (add-breaking ssa init)
+                  {:as ssa, place :result} (add-place ssa result tag)]
+              (-> ssa
+                (update :locals assoc name place)
+                (assoc :result (conj places place)))))
+          (add-bindings [ssa bindings f & args]
+            (restore
+              (apply f
+                (reduce add-binding
+                  (assoc ssa :result [])
+                  bindings) args)
+              ssa :locals))
           (add-loop-body [previous body]
             (as-> previous ssa
                   (-> ssa
@@ -442,39 +448,38 @@
                       (add-breaking body))
                   (restore ssa previous :loop)))
           (add-branch [ssa ast]
-            (let [prv (:result ssa)
+            (let [branches (:result ssa)
                   ssa (add-breaking ssa ast)]
-              (if-some [place (:result ssa)]
+              (if (contains? ssa :result)
                 (-> ssa
-                    (with-place place)
-                    (assoc :result (assoc prv (current-block ssa) place)))
-                (assoc ssa :result prv))))
+                  (with-place (:result ssa))
+                  (assoc :result (assoc branches (current-block ssa) (:result ssa))))
+                (assoc ssa :result branches))))
           (add-conditional [ssa test clauses default]
-            (let [ssa (add-breaking ssa test)
-                  block (current-block ssa)]
-              (if-some [place (:result ssa)]
-                (let [{:as ssa target :result}
-                      (-> ssa
-                          (with-place place)
-                          (with-test place)
-                          (add-place nil))
-                      {:as ssa branches :result}
-                      (-> (reduce-kv (fn [ssa test then]
-                                       (-> ssa
-                                           (add-block)
-                                           (with-clause-jump block test)
-                                           (add-branch then)))
-                                     (dissoc ssa :result) clauses)
-                          (add-block)
-                          (with-default-jump block)
-                          (add-branch default))]
-                  (if branches
-                    (-> ssa
-                        (add-block)
-                        (with-joins target branches)
-                        (with-place target)
-                        (assoc :result target))
-                    (dissoc ssa :result))) ssa)))
+            (let [{:as ssa test :result} (add-breaking ssa test)
+                  block (current-block ssa)
+                  {:as ssa, target :result}
+                  (-> ssa
+                    (with-place test)
+                    (update-in [:blocks block] assoc :test test)
+                    (add-place nil))
+                  {:as ssa, branches :result}
+                  (-> (reduce-kv (fn [ssa test then]
+                                   (-> ssa
+                                     (add-block)
+                                     (with-clause-jump block test)
+                                     (add-branch then)))
+                        (assoc ssa :result {}) clauses)
+                    (add-block)
+                    (with-default-jump block)
+                    (add-branch default))]
+              (if (zero? (count branches))
+                (dissoc ssa :result)
+                (-> ssa
+                  (add-block)
+                  (with-joins target branches)
+                  (with-place target)
+                  (assoc :result target)))))
           (add-breaking [ssa ast]
             (let [tag (-> ast :tag tag->symbol)
                   met (ast-meta ast)]
@@ -491,7 +496,12 @@
                       (add-place (emit-place ssa tag place) tag))
                   (add-place ssa (:form ast) tag))
 
-                (:const :var :js-var :quote :the-var :static-field)
+                :const
+                (assoc ssa
+                       :result (:form ast)
+                       :tag tag)
+
+                (:var :js-var :quote :the-var :static-field)
                 (add-place ssa `(hint ~tag ~(-> ast :o-tag tag->symbol) ~(:form ast)) tag)
 
                 (:fn :reify :deftype)
@@ -688,7 +698,8 @@
           (emit-store [ssa [place value]]
             `(aset ~(emit-state-symbol ssa)
                    ~(get-in ssa [:places place :color])
-                   ~(when value `(hint nil ~(get-in ssa [:places value :tag]) ~value))))
+                   ~(when value `(hint nil ~(if-some [p (get-in ssa [:places value])]
+                                              (:tag p) (tag->symbol (type value))) ~value))))
 
           (emit-jump [ssa origin {:keys [block write state]}]
             (let [{:keys [heap bind]} (get-in ssa [:blocks origin])
